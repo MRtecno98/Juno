@@ -12,8 +12,12 @@ class EventScheduler:
         self.__sort_esr(event_id)
 
     def throw_event(self, event_id, *args, **kwargs):
+        cancelled = False
         for esr in self.__get_esr_list(event_id):
-            esr(*args, **kwargs)
+            cancel = esr(*args, **kwargs, cancelled=cancelled)
+            if cancel is not None:
+                cancelled = cancel
+        return cancelled
 
     def __get_esr_list(self, event_id):
         if event_id not in self.routines.keys():
@@ -42,7 +46,12 @@ class Priority(enum.IntEnum):
     LOW = -5
     ULTRA_LOW = -10
 
-def event_handler(priority):
+class ServerEvents(str, enum.Enum):
+    TICK = "tick"
+    EXCEPTION = "exception"
+    SHUTDOWN = "shutdown"
+
+def event_handler(priority=Priority.NORMAL):
     def event_decorator(handler):
         mark_object(handler, EVENT_MARKER)
         if not (hasattr(handler, "properties") and handler.properties):
@@ -51,4 +60,8 @@ def event_handler(priority):
         handler.properties["priority"] = priority
 
         return handler
-    return event_decorator
+
+    if callable(priority):
+        return event_decorator(priority)
+    else:
+        return event_decorator
