@@ -1,1 +1,1 @@
-from server.server import NetworkServer
+from server.router import LogisticalRouter

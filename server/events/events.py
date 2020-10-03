@@ -33,7 +33,7 @@ class EventScheduler:
             if is_marked(esr, EVENT_MARKER):
                 return esr.properties["priority"]
             else:
-                return 0
+                return Priority.NORMAL
 
         self.__set_esr_list(event_id,
                             sorted(self.__get_esr_list(event_id),
@@ -49,15 +49,17 @@ class Priority(enum.IntEnum):
 class ServerEvents(str, enum.Enum):
     TICK = "tick"
     EXCEPTION = "exception"
+    STARTUP = "startup"
     SHUTDOWN = "shutdown"
 
 def event_handler(priority=Priority.NORMAL):
     def event_decorator(handler):
-        mark_object(handler, EVENT_MARKER)
-        if not (hasattr(handler, "properties") and handler.properties):
-            handler.properties = dict()
+        if not callable(priority):
+            mark_object(handler, EVENT_MARKER)
+            if not (hasattr(handler, "properties") and handler.properties):
+                handler.properties = dict()
 
-        handler.properties["priority"] = priority
+            handler.properties["priority"] = priority
 
         return handler
 
