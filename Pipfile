@@ -7,6 +7,8 @@ verify_ssl = true
 
 [packages]
 cryptography = "*"
+pyyaml = "*"
+related = "*"
 
 [requires]
 python_version = "3.6"

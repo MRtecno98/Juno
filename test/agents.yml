@@ -1,0 +1,4 @@
+agents:
+  test:
+    address: 56.56.56.56
+    port: 6900

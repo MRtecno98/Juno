@@ -46,12 +46,6 @@ class Priority(enum.IntEnum):
     LOW = -5
     ULTRA_LOW = -10
 
-class ServerEvents(str, enum.Enum):
-    TICK = "tick"
-    EXCEPTION = "exception"
-    STARTUP = "startup"
-    SHUTDOWN = "shutdown"
-
 def event_handler(priority=Priority.NORMAL):
     def event_decorator(handler):
         if not callable(priority):
