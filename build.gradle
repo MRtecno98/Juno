@@ -10,6 +10,8 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+
     compileOnly 'org.projectlombok:lombok:1.18.32'
     annotationProcessor 'org.projectlombok:lombok:1.18.32'
 

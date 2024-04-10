@@ -2,7 +2,7 @@ package dev.mrtecno.juno.plugin.identifier;
 
 import dev.mrtecno.juno.plugin.PluginManifest;
 
-public record PluginIdentifier(String name, int major, int minor, int patch)
+public record PluginIdentifier(String name, Version version)
 		implements Comparable<PluginIdentifier>, PluginWildcard {
 
 	@Override
@@ -11,11 +11,11 @@ public record PluginIdentifier(String name, int major, int minor, int patch)
 	}
 
 	public boolean equalsVersion(PluginIdentifier o) {
-		return major == o.major() && minor == o.minor() && patch == o.patch();
+		return version.equals(o.version);
 	}
 
 	public String toString() {
-		return name + "==" + major + "." + minor + "." + patch;
+		return name + ":" + version;
 	}
 
 	@Override
@@ -29,16 +29,11 @@ public record PluginIdentifier(String name, int major, int minor, int patch)
 			return result;
 		}
 
-		result = Integer.compare(major, o.major);
-		if (result != 0) {
-			return result;
-		}
+		return Integer.compare(version.major(), o.version.major());
+	}
 
-		result = Integer.compare(minor, o.minor);
-		if (result != 0) {
-			return result;
-		}
-
-		return Integer.compare(patch, o.patch);
+	public static PluginIdentifier parseIdentifier(String identifier) {
+		String[] split = identifier.split(":");
+		return new PluginIdentifier(split[0], Version.parseVersion(split[1]));
 	}
 }
