@@ -68,9 +68,10 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public Collection<PluginManifest> lookupDependencies(PluginManifest manifest) {
-		return Arrays.stream(manifest.dependencies()).filter(Predicate.not(this::isKnown)).map(d ->
+		return Arrays.stream(manifest.dependencies()).map(d ->
 			lookup(d).orElseThrow(() -> new IllegalArgumentException(
-					"Dependency for plugin " + manifest.name() + " not found: " + d))).toList();
+					"Dependency for plugin " + manifest.name() + " not found: " + d)))
+				.toList();
 	}
 
 	public Optional<PluginManifest> knownManifest(PluginIdentifier id) {
@@ -78,7 +79,7 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public SortedMap<PluginIdentifier, PluginManifest> knownVersions(String name) {
-		return discoveredPlugins().computeIfAbsent(name, _ -> new TreeMap<>());
+		return discoveredPlugins().computeIfAbsent(name, x -> new TreeMap<>());
 	}
 
 	public void discover(PluginManifest manifest) {
@@ -109,6 +110,10 @@ public class PluginManager implements Service, PluginLoader {
 
 	public boolean isKnown(PluginManifest manifest) {
 		return isKnown(manifest.id());
+	}
+
+	public Optional<Plugin> get(PluginManifest id) {
+		return Optional.ofNullable(plugins.get(id.id()));
 	}
 
 	public Collection<Plugin> plugins() {
@@ -153,10 +158,30 @@ public class PluginManager implements Service, PluginLoader {
 		return registerPlugin(manifest.load());
 	}
 
+	public SequencedSet<Plugin> topologicalSort() {
+		SequencedSet<PluginManifest> progress = new LinkedHashSet<>();
+
+		plugins().stream().map(Plugin::manifest)
+				.forEachOrdered(p -> topologicalSort(p, progress));
+
+		return progress.stream().map(this::get)
+				.map(Optional::orElseThrow)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	private void topologicalSort(PluginManifest target, SequencedSet<PluginManifest> progress) {
+		if(progress.contains(target)) return;
+
+		lookupDependencies(target).stream().filter(Predicate.not(progress::contains))
+				.forEachOrdered(d -> topologicalSort(d, progress));
+
+		progress.add(target);
+	}
+
 	@Override
 	public void enable() {
 		load();
-		plugins().forEach(Plugin::enable); // TODO: Sort topologically by dependencies
+		topologicalSort().forEach(Plugin::enable);
 	}
 
 	@Override
