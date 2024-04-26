@@ -23,6 +23,8 @@ public class Juno implements Service {
 
 		pluginManager().registerLoader(new FileLoader(new File("plugins")));
 		pluginManager().initialize();
+
+		pluginManager().enable();
 	}
 
 	@Override
