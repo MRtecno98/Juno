@@ -23,6 +23,7 @@ public class PluginManager implements Service, PluginLoader {
 
 	private final PluginGraph dependencyGraph = new PluginGraph();
 	private final Map<String, Plugin> plugins = new HashMap<>();
+	private final Set<Plugin> enabled = new HashSet<>();
 
 	private final boolean recursiveLookup;
 
@@ -226,7 +227,7 @@ public class PluginManager implements Service, PluginLoader {
 	@Override
 	public void enable() {
 		dependencyGraph().traverse().map(PluginManifest::name)
-				.map(plugins::get).forEachOrdered(Plugin::enable);
+				.map(plugins::get).map(peek(enabled()::add)).forEachOrdered(Plugin::enable);
 	}
 
 	@Override
@@ -238,7 +239,8 @@ public class PluginManager implements Service, PluginLoader {
 	@Override
 	public void disable() {
 		dependencyGraph().traverse(true).map(PluginManifest::name)
-				.map(plugins::get).forEachOrdered(Plugin::disable);
+				.map(plugins::get).filter(enabled()::contains)
+				.map(peek(enabled()::remove)).forEachOrdered(Plugin::disable);
 		dependencyGraph().clear();
 		plugins().clear();
 	}
