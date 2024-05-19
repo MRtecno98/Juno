@@ -1,12 +1,10 @@
 package dev.mrtecno.juno;
 
-import dev.mrtecno.juno.loaders.FileLoader;
+import dev.mrtecno.juno.loaders.IntegratedLoader;
 import dev.mrtecno.juno.plugin.PluginManager;
 import dev.mrtecno.juno.service.Service;
 import dev.mrtecno.juno.service.ServiceManager;
 import lombok.Getter;
-
-import java.io.File;
 
 @Getter
 public class Juno implements Service {
@@ -17,14 +15,18 @@ public class Juno implements Service {
 
 	@Override
 	public void enable() {
-		serviceManager.register(this).ifPresent(x -> {
+		serviceManager.register(this).ifPresent(_ -> {
 			throw new IllegalStateException("Juno was already registered");
 		});
 
-		pluginManager().registerLoader(new FileLoader(new File("plugins")));
+		// pluginManager().registerLoader(new FileLoader(new File("plugins")));
+		pluginManager().registerLoader(
+				new IntegratedLoader(
+						"dev.mrtecno.juno.TestPlugin",
+						"dev.mrtecno.juno.TestPlugin2"));
 		pluginManager().initialize();
 
-		pluginManager().enable();
+		pluginManager().startup();
 	}
 
 	@Override
@@ -41,6 +43,6 @@ public class Juno implements Service {
 	}
 
 	public static void main(String[] args) {
-		instance().startup();
+		instance().run();
 	}
 }
