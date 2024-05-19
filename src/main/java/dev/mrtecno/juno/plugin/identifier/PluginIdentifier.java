@@ -6,7 +6,7 @@ public record PluginIdentifier(String name, Version version)
 		implements Comparable<PluginIdentifier>, PluginWildcard {
 
 	@Override
-	public boolean accept(PluginManifest manifest) {
+	public boolean test(PluginManifest manifest) {
 		return manifest.id().equals(this);
 	}
 
@@ -14,6 +14,7 @@ public record PluginIdentifier(String name, Version version)
 		return version.equals(o.version);
 	}
 
+	@Override
 	public String toString() {
 		return name + ":" + version;
 	}

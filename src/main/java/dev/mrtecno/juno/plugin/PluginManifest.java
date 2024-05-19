@@ -2,6 +2,7 @@ package dev.mrtecno.juno.plugin;
 
 import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
 import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
+import dev.mrtecno.juno.plugin.identifier.Version;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 
@@ -14,6 +15,10 @@ public record PluginManifest(PluginLoader loader, String entrypoint,
 
 	public String name() {
 		return id.name();
+	}
+
+	public Version version() {
+		return id().version();
 	}
 
 	@Override

@@ -4,7 +4,7 @@ import dev.mrtecno.juno.plugin.PluginManifest;
 
 public record NamedIdentifier(String name) implements PluginWildcard {
 	@Override
-	public boolean accept(PluginManifest manifest) {
+	public boolean test(PluginManifest manifest) {
 		return name().equals(manifest.name());
 	}
 
