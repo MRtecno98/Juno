@@ -7,6 +7,7 @@ import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
 import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
 import dev.mrtecno.juno.plugin.identifier.Version;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -16,6 +17,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -24,22 +26,19 @@ import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
 @Getter
-public class FileLoader implements PluginLoader {
+@RequiredArgsConstructor
+public class FileLoader implements PluginLoader, LocalLoader {
 	private final File directory;
-	private URLClassLoader classLoader;
+	private ClassLoader parentClassLoader;
 
 	private final Map<PluginManifest, File> discoveredFiles = new HashMap<>();
-
-	public FileLoader(File directory) {
-		if(!directory.exists() && !directory.mkdirs())
-			throw new IllegalArgumentException("Could not create directory: " + directory.getAbsolutePath());
-
-		this.directory = directory;
-	}
+	private final Map<PluginIdentifier, WeakReference<URLClassLoader>> openLoaders = new HashMap<>();
 
 	public void discoverFiles() {
 		discoveredFiles.clear();
-		if(!directory.exists()) return;
+		if(!directory.exists() && !directory.mkdirs())
+			throw new IllegalArgumentException(
+					"Could not create directory: " + directory.getAbsolutePath());
 
 		if(directory.isFile())
 			checkJar(directory).ifPresent(
@@ -54,7 +53,7 @@ public class FileLoader implements PluginLoader {
 	}
 
 	@SuppressWarnings("unchecked")
-	public Optional<PluginManifest> checkJar(File file) {
+	public static Optional<PluginManifest> checkJar(File file) {
 		if(!file.getName().endsWith(".jar")) return Optional.empty();
 
 		try(JarFile jarFile = new JarFile(file)) {
@@ -91,14 +90,7 @@ public class FileLoader implements PluginLoader {
 	@Override
 	public void initialize(ClassLoader parent) {
 		discoverFiles();
-		classLoader = new URLClassLoader(
-			discoveredFiles().values().stream().map(f -> {
-				try {
-					return f.toURI().toURL();
-				} catch (MalformedURLException e) {
-					throw new RuntimeException(e);
-				}
-			}).toArray(URL[]::new), parent);
+		this.parentClassLoader = parent;
 	}
 
 	@Override
@@ -106,15 +98,47 @@ public class FileLoader implements PluginLoader {
 		return discoveredFiles().keySet();
 	}
 
-	@Override
-	public Optional<PluginManifest> lookup(PluginWildcard name) {
-		return availablePlugins().stream()
-				.filter(m -> m.name().equals(name.name()))
-				.filter(name::accept).findAny();
+	// REMEMBER TO DESTROY THIS REFERENCE
+	protected URLClassLoader requireLoader(PluginManifest manifest) {
+		URLClassLoader loader;
+
+		if(!openLoaders().containsKey(manifest.id()) || (loader = openLoaders.get(manifest.id()).get()) == null) {
+			try {
+				loader = new URLClassLoader(new URL[] {discoveredFiles.get(manifest).toURI().toURL()}, parentClassLoader);
+			} catch (MalformedURLException e) {
+				throw new IllegalArgumentException("Could not create class loader for plugin " + manifest.name());
+			}
+			openLoaders.put(manifest.id(), new WeakReference<>(loader));
+		}
+
+		return loader;
 	}
 
 	@Override
 	public Plugin load(PluginManifest manifest) {
-		return null;
+		try {
+			return Class.forName(manifest.entrypoint(), true, requireLoader(manifest))
+					.asSubclass(Plugin.class).getConstructor(PluginManifest.class).newInstance(manifest);
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalArgumentException("Could not load plugin " + manifest.name(), e);
+		}
+	}
+
+	@Override
+	public void unload(Plugin pl) {
+		WeakReference<URLClassLoader> ref = openLoaders().get(pl.id());
+
+		if(!ref.refersTo(null)) {
+			try {
+				Objects.requireNonNull(ref.get()).close();
+			} catch (IOException e) {
+				throw new IllegalArgumentException("Could not close class loader for plugin " + pl.manifest().name());
+			} catch(NullPointerException ignored) {} // In case the GC sweeps us
+		}
+
+		ref.clear();
+		openLoaders().remove(pl.id());
+
+		System.gc(); // Ask GC to clean up the class loader (hopefully)
 	}
 }
