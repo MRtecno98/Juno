@@ -18,4 +18,6 @@ public interface PluginLoader {
 	}
 
 	Plugin load(PluginManifest manifest);
+
+	void unload(Plugin pl);
 }

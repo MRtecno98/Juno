@@ -5,6 +5,7 @@ public interface Service {
 	void disable();
 
 	default void load() {}
+	default void unload() {}
 
 	default void reload() {
 		disable();
@@ -12,16 +13,22 @@ public interface Service {
 	}
 
 	default void restart() {
-		reload();
+		disable();
 		enable();
 	}
 
 	default void startup() {
+		load();
+		enable();
+	}
+
+	default void run() {
 		try {
 			load();
 			enable();
 		} finally {
 			disable();
+			unload();
 		}
 	}
 }

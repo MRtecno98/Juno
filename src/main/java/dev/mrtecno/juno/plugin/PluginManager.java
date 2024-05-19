@@ -1,13 +1,17 @@
 package dev.mrtecno.juno.plugin;
 
+import dev.mrtecno.juno.plugin.graph.PluginGraph;
 import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
 import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
+import dev.mrtecno.juno.plugin.identifier.Version;
 import dev.mrtecno.juno.service.Service;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static dev.mrtecno.juno.util.Optionals.peek;
@@ -17,10 +21,8 @@ import static dev.mrtecno.juno.util.Optionals.peek;
 public class PluginManager implements Service, PluginLoader {
 	private final Collection<PluginLoader> loaders = new ArrayList<>();
 
-	private final Map<String, SortedMap<PluginIdentifier, PluginManifest>> discoveredPlugins = new HashMap<>();
-	private final Map<PluginIdentifier, Plugin> plugins = new HashMap<>();
-
-	private final Set<String> pluginNames = new HashSet<>();
+	private final PluginGraph dependencyGraph = new PluginGraph();
+	private final Map<String, Plugin> plugins = new HashMap<>();
 
 	private final boolean recursiveLookup;
 
@@ -46,6 +48,13 @@ public class PluginManager implements Service, PluginLoader {
 		initialize(getClass().getClassLoader());
 	}
 
+	public Map<String, SortedMap<Version, PluginManifest>> discoveredPlugins() {
+		return dependencyGraph().pluginNames().entrySet()
+				.stream().collect(Collectors.toMap(
+						Map.Entry::getKey,
+						e -> e.getValue().versions()));
+	}
+
 	@Override
 	public Collection<PluginManifest> availablePlugins() {
 		return discoveredPlugins().values().stream()
@@ -54,15 +63,16 @@ public class PluginManager implements Service, PluginLoader {
 
 	public Optional<PluginManifest> lookup(PluginWildcard id) {
 		if(discoveredPlugins().containsKey(id.name()))
-			if(id instanceof PluginIdentifier)
-				return Optional.ofNullable(knownVersions(id.name()).get(id));
+			if(id instanceof PluginIdentifier identifier)
+				return Optional.ofNullable(
+						knownVersions(id.name()).get(identifier.version()));
 			else return knownVersions(id.name()).reversed()
-					.values().stream().filter(id::accept).findFirst();
+					.values().stream().filter(id).findFirst();
 
 		return loaders().stream()
 				.map(loader -> loader.lookup(id))
 				.filter(Optional::isPresent).map(Optional::get)
-				.peek(this::discover).findFirst().map(peek(m ->{
+				.peek(this::discover).findFirst().map(peek(m -> {
 					if(recursiveLookup()) lookupDependencies(m);
 				}));
 	}
@@ -75,10 +85,10 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public Optional<PluginManifest> knownManifest(PluginIdentifier id) {
-		return Optional.ofNullable(knownVersions(id.name()).get(id));
+		return Optional.ofNullable(knownVersions(id.name()).get(id.version()));
 	}
 
-	public SortedMap<PluginIdentifier, PluginManifest> knownVersions(String name) {
+	public SortedMap<Version, PluginManifest> knownVersions(String name) {
 		return discoveredPlugins().computeIfAbsent(name, x -> new TreeMap<>());
 	}
 
@@ -92,7 +102,8 @@ public class PluginManager implements Service, PluginLoader {
 			throw new IllegalArgumentException("Manifest already discovered by loader "
 					+ manifest.loader().getClass().getName());
 
-		knownVersions(manifest.name()).put(manifest.id(), manifest);
+		knownVersions(manifest.name()).put(manifest.version(), manifest);
+		dependencyGraph().add(manifest);
 	}
 
 	public boolean isKnown(String name) {
@@ -101,11 +112,11 @@ public class PluginManager implements Service, PluginLoader {
 
 	public boolean isKnown(PluginWildcard wildcard) {
 		return isKnown(wildcard.name()) && knownVersions(wildcard.name())
-				.values().stream().anyMatch(wildcard::accept);
+				.values().stream().anyMatch(wildcard);
 	}
 
 	public boolean isKnown(PluginIdentifier id) {
-		return isKnown(id.name()) && knownVersions(id.name()).containsKey(id);
+		return isKnown(id.name()) && knownVersions(id.name()).containsKey(id.version());
 	}
 
 	public boolean isKnown(PluginManifest manifest) {
@@ -113,7 +124,7 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public Optional<Plugin> get(PluginManifest id) {
-		return Optional.ofNullable(plugins.get(id.id()));
+		return Optional.ofNullable(plugins.get(id.name()));
 	}
 
 	public Collection<Plugin> plugins() {
@@ -126,15 +137,15 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public boolean isLoaded(PluginManifest manifest) {
-		return plugins.containsKey(manifest.id());
+		return plugins.containsKey(manifest.name());
 	}
 
 	public boolean isLoaded(PluginIdentifier id) {
-		return plugins.containsKey(id);
+		return plugins.containsKey(id.name());
 	}
 
 	public boolean isLoaded(String name) {
-		return pluginNames.contains(name);
+		return plugins.containsKey(name);
 	}
 
 	public Plugin registerPlugin(Plugin plugin) {
@@ -142,20 +153,53 @@ public class PluginManager implements Service, PluginLoader {
 			throw new IllegalArgumentException(
 				"Plugin already registered: " + plugin.manifest().name());
 
-		plugins.put(plugin.manifest().id(), plugin);
-		pluginNames().add(plugin.manifest().name());
+		if(plugin.linked() && !plugin.linkedWith(this))
+			throw new IllegalArgumentException(
+				"Plugin already linked to another manager: " + plugin.manifest().name());
+		plugin.link(this);
+
+		plugins.put(plugin.manifest().name(), plugin);
 
 		return plugin;
 	}
 
 	public Plugin load(PluginManifest manifest) {
 		if(!isKnown(manifest)) discover(manifest);
-		if(isLoaded(manifest)) return plugins.get(manifest.id());
+		if(isLoaded(manifest)) return plugins.get(manifest.name());
 
 		lookupDependencies(manifest).stream()
 				.filter(Predicate.not(this::isLoaded)).forEach(this::load);
 
 		return registerPlugin(manifest.load());
+	}
+
+	@Override
+	public void unload(Plugin pl) {
+		if(!isLoaded(pl.manifest()))
+			throw new IllegalArgumentException("Plugin not loaded: " + pl.manifest().name());
+
+		dependencyGraph().traverseDependents(pl.manifest(), false, false)
+				.filter(this::isLoaded).map(this::get)
+				.forEach(p -> unload(p.orElseThrow()));
+
+		try {
+			pl.unload0();
+		} catch(UnsupportedOperationException e) {
+			return; // Plugin does not support unloading
+		} catch (Exception e) {
+			// Can't abort unloading process if we want to
+			// maintain the state of the manager
+			// TODO: Create logger service
+			Logger.getAnonymousLogger().log(Level.SEVERE,
+					"Could not unload plugin " + pl.manifest().name(), e);
+		}
+
+		plugins.remove(pl.manifest().name());
+		dependencyGraph().remove(pl.manifest());
+
+		// TODO: Unload unused dependencies?
+		/* lookupDependencies(pl.manifest()).stream()
+				.filter(this::isLoaded).forEach(d -> get(d).ifPresent(this::unload)); */
 	}
 
 	public SequencedSet<Plugin> topologicalSort() {
@@ -180,8 +224,8 @@ public class PluginManager implements Service, PluginLoader {
 
 	@Override
 	public void enable() {
-		load();
-		topologicalSort().forEach(Plugin::enable);
+		dependencyGraph().traverse().map(PluginManifest::name)
+				.map(plugins::get).forEachOrdered(Plugin::enable);
 	}
 
 	@Override
@@ -192,9 +236,9 @@ public class PluginManager implements Service, PluginLoader {
 
 	@Override
 	public void disable() {
-		plugins().forEach(Plugin::disable);
-		discoveredPlugins().clear();
+		dependencyGraph().traverse(true).map(PluginManifest::name)
+				.map(plugins::get).forEachOrdered(Plugin::disable);
+		dependencyGraph().clear();
 		plugins().clear();
-		pluginNames.clear();
 	}
 }
