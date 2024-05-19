@@ -50,7 +50,8 @@ public class PluginManager implements Service, PluginLoader {
 
 	public Map<String, SortedMap<Version, PluginManifest>> discoveredPlugins() {
 		return dependencyGraph().pluginNames().entrySet()
-				.stream().collect(Collectors.toMap(
+				.stream().filter(e -> !e.getValue().versions().isEmpty())
+				.collect(Collectors.toMap(
 						Map.Entry::getKey,
 						e -> e.getValue().versions()));
 	}
