@@ -91,7 +91,7 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	public SortedMap<Version, PluginManifest> knownVersions(String name) {
-		return discoveredPlugins().computeIfAbsent(name, x -> new TreeMap<>());
+		return discoveredPlugins().computeIfAbsent(name, _ -> new TreeMap<>());
 	}
 
 	public void discover(PluginManifest manifest) {
@@ -204,24 +204,26 @@ public class PluginManager implements Service, PluginLoader {
 				.filter(this::isLoaded).forEach(d -> get(d).ifPresent(this::unload)); */
 	}
 
-	public SequencedSet<Plugin> topologicalSort() {
-		SequencedSet<PluginManifest> progress = new LinkedHashSet<>();
+	public void enable(Plugin pl) {
+		if(!isLoaded(pl.manifest()))
+			throw new IllegalArgumentException("Plugin not loaded: " + pl.manifest().name());
 
-		plugins().stream().map(Plugin::manifest)
-				.forEachOrdered(p -> topologicalSort(p, progress));
+		dependencyGraph().traverseDependents(pl.manifest(), false)
+				.filter(this::isLoaded).map(this::get)
+				.forEach(p -> enable(p.orElseThrow()));
 
-		return progress.stream().map(this::get)
-				.map(Optional::orElseThrow)
-				.collect(Collectors.toCollection(LinkedHashSet::new));
+		pl.enable(); // Could also set self to true
 	}
 
-	private void topologicalSort(PluginManifest target, SequencedSet<PluginManifest> progress) {
-		if(progress.contains(target)) return;
+	public void disable(Plugin pl) {
+		if(!isLoaded(pl.manifest()))
+			throw new IllegalArgumentException("Plugin not loaded: " + pl.manifest().name());
 
-		lookupDependencies(target).stream().filter(Predicate.not(progress::contains))
-				.forEachOrdered(d -> topologicalSort(d, progress));
+		pl.disable(); // Could also set self to true
 
-		progress.add(target);
+		dependencyGraph().traverseDependents(pl.manifest(), true, true)
+				.filter(this::isLoaded).map(this::get)
+				.forEach(p -> disable(p.orElseThrow()));
 	}
 
 	@Override
@@ -231,17 +233,22 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	@Override
-	public void load() {
-		loaders().stream().flatMap(loader
-				-> loader.availablePlugins().stream()).forEach(this::load);
-	}
-
-	@Override
 	public void disable() {
 		dependencyGraph().traverse(true).map(PluginManifest::name)
 				.map(plugins::get).filter(enabled()::contains)
 				.map(peek(enabled()::remove)).forEachOrdered(Plugin::disable);
 		dependencyGraph().clear();
 		plugins().clear();
+	}
+
+	@Override
+	public void load() {
+		loaders().stream().flatMap(loader
+				-> loader.availablePlugins().stream()).forEach(this::load);
+	}
+
+	@Override
+	public void unload() {
+		plugins().forEach(this::unload);
 	}
 }
