@@ -7,10 +7,8 @@ import dev.mrtecno.juno.util.Pair;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.io.InputStream;
+import java.util.*;
 
 @Getter
 @RequiredArgsConstructor
@@ -49,5 +47,24 @@ public class IntegratedLoader implements PluginLoader, LocalLoader {
 	@Override
 	public void unload(Plugin pl) {
 		throw new UnsupportedOperationException("Cannot unload integrated plugins");
+	}
+
+	public static IntegratedLoader fromListFile(String resource) {
+		return fromListFile(IntegratedLoader.class.getResourceAsStream(resource));
+	}
+
+	public static IntegratedLoader fromListFile(String resource, ClassLoader loader) {
+		return fromListFile(loader.getResourceAsStream(resource));
+	}
+
+	public static IntegratedLoader fromListFile(InputStream stream) {
+		try {
+			String[] lines = new String(stream.readAllBytes()).trim().split("\n");
+			return new IntegratedLoader(Arrays.stream(lines)
+					.filter(l -> !l.isBlank()).map(String::trim)
+					.filter(l -> !l.startsWith("#")).toArray(String[]::new));
+		} catch (Exception e) {
+			throw new RuntimeException("Could not read classpath list file", e);
+		}
 	}
 }
