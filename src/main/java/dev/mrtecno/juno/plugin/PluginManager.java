@@ -125,8 +125,24 @@ public class PluginManager implements Service, PluginLoader {
 		return isKnown(manifest.id());
 	}
 
+	public boolean isEnabled(Plugin pl) {
+		return enabled().contains(pl);
+	}
+
+	public boolean isEnabled(PluginManifest manifest) {
+		return isEnabled(get(manifest).orElseThrow());
+	}
+
+	public boolean isEnabled(String name) {
+		return isEnabled(get(name).orElseThrow());
+	}
+
 	public Optional<Plugin> get(PluginManifest id) {
-		return Optional.ofNullable(plugins.get(id.name()));
+		return get(id.name());
+	}
+
+	public Optional<Plugin> get(String name) {
+		return Optional.ofNullable(plugins.get(name));
 	}
 
 	public Collection<Plugin> plugins() {
@@ -208,22 +224,20 @@ public class PluginManager implements Service, PluginLoader {
 		if(!isLoaded(pl.manifest()))
 			throw new IllegalArgumentException("Plugin not loaded: " + pl.manifest().name());
 
-		dependencyGraph().traverseDependents(pl.manifest(), false)
-				.filter(this::isLoaded).map(this::get)
-				.forEach(p -> enable(p.orElseThrow()));
-
-		pl.enable(); // Could also set self to true
+		dependencyGraph().traverseDependencies(pl.manifest(), true)
+				.filter(this::isLoaded).filter(Predicate.not(this::isEnabled))
+				.map(this::get).map(Optional::orElseThrow).map(peek(enabled()::add))
+				.forEach(Plugin::enable);
 	}
 
 	public void disable(Plugin pl) {
 		if(!isLoaded(pl.manifest()))
 			throw new IllegalArgumentException("Plugin not loaded: " + pl.manifest().name());
 
-		pl.disable(); // Could also set self to true
-
 		dependencyGraph().traverseDependents(pl.manifest(), true, true)
 				.filter(this::isLoaded).map(this::get)
-				.forEach(p -> disable(p.orElseThrow()));
+				.map(Optional::orElseThrow).map(peek(enabled()::remove))
+				.forEach(Plugin::disable);
 	}
 
 	@Override
