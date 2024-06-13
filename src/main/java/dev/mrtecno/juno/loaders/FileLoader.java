@@ -53,7 +53,7 @@ public class FileLoader implements PluginLoader, LocalLoader {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static Optional<PluginManifest> checkJar(File file) {
+	public Optional<PluginManifest> checkJar(File file) {
 		if(!file.getName().endsWith(".jar")) return Optional.empty();
 
 		try(JarFile jarFile = new JarFile(file)) {
@@ -67,9 +67,14 @@ public class FileLoader implements PluginLoader, LocalLoader {
 				PluginManifest.PluginManifestBuilder builder = PluginManifest.builder();
 
 				String name = (String) parsed.get("name");
-				JSONArray versions = (JSONArray) parsed.get("version");
-				Version version = new Version(
-						(Integer) versions.get(0), (Integer) versions.get(1), (Integer) versions.get(2));
+
+				Object versions = parsed.get("version");
+
+				Version version;
+				if(versions instanceof JSONArray array)
+					version = new Version(
+						(Integer) array.get(0), (Integer) array.get(1), (Integer) array.get(2));
+				else version = Version.parseVersion((String) versions);
 
 				builder.id(new PluginIdentifier(name, version));
 				builder.entrypoint((String) parsed.get("entrypoint"));
@@ -78,7 +83,7 @@ public class FileLoader implements PluginLoader, LocalLoader {
 				builder.dependencies(dependencies.stream()
 						.map(PluginWildcard::parseWildcard).toArray(PluginWildcard[]::new));
 
-				return Optional.of(builder.build());
+				return Optional.of(builder.loader(this).build());
 			} catch (ParseException e) {
 				throw new RuntimeException(e);
 			}
