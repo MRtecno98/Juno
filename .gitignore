@@ -1,11 +1,13 @@
 .gradle
 build/
+plugins/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
 ### IntelliJ IDEA ###
 .idea/
+*.iml
 
 ### Eclipse ###
 .apt_generated

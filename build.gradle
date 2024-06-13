@@ -25,12 +25,37 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(22)
     }
+}
+
+clean {
+    delete 'plugins'
+}
+
+tasks.run {
+    dependsOn 'assemble'
+}
+
+tasks.register('testJar', Jar) {
+    dependsOn testClasses
+    archiveClassifier = 'test'
+    from sourceSets.test.output
+}
+
+tasks.register("copyPlugin", Copy) {
+    into 'plugins'
+    from tasks.testJar.outputs
+}
+
+tasks.named('assemble').configure {
+    dependsOn 'testJar'
+    dependsOn 'copyPlugin'
 }
 
 test {

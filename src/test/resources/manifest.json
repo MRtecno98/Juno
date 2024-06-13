@@ -1,0 +1,8 @@
+{
+  "name": "TestFilePlugin",
+  "version": "1.0.0",
+  "entrypoint": "dev.mrtecno.juno.tests.TestFilePlugin",
+  "dependencies": [
+    "TestPlugin", "TestPlugin2"
+  ]
+}
