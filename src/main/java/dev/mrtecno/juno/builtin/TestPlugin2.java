@@ -1,4 +1,4 @@
-package dev.mrtecno.juno;
+package dev.mrtecno.juno.builtin;
 
 import dev.mrtecno.juno.plugin.Manifest;
 import dev.mrtecno.juno.plugin.Plugin;

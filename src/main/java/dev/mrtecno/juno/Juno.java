@@ -1,10 +1,13 @@
 package dev.mrtecno.juno;
 
+import dev.mrtecno.juno.loaders.FileLoader;
 import dev.mrtecno.juno.loaders.IntegratedLoader;
 import dev.mrtecno.juno.plugin.PluginManager;
 import dev.mrtecno.juno.service.Service;
 import dev.mrtecno.juno.service.ServiceManager;
 import lombok.Getter;
+
+import java.io.File;
 
 @Getter
 public class Juno implements Service {
@@ -19,11 +22,9 @@ public class Juno implements Service {
 			throw new IllegalStateException("Juno was already registered");
 		});
 
-		// pluginManager().registerLoader(new FileLoader(new File("plugins")));
 		pluginManager().registerLoader(
-				new IntegratedLoader(
-						"dev.mrtecno.juno.TestPlugin",
-						"dev.mrtecno.juno.TestPlugin2"));
+				IntegratedLoader.fromListFile("/plugins"));
+		pluginManager().registerLoader(new FileLoader(new File("plugins")));
 		pluginManager().initialize();
 
 		pluginManager().startup();
@@ -33,7 +34,7 @@ public class Juno implements Service {
 	public void disable() {
 		pluginManager().disable();
 
-		serviceManager.unregister(getClass()).orElseThrow(
+		serviceManager().unregister(getClass()).orElseThrow(
 			() -> new IllegalStateException("Juno was not registered"));
 	}
 
