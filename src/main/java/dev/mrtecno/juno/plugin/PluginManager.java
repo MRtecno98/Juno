@@ -22,7 +22,7 @@ public class PluginManager implements Service, PluginLoader {
 	private final Collection<PluginLoader> loaders = new ArrayList<>();
 
 	private final PluginGraph dependencyGraph = new PluginGraph();
-	private final Map<String, Plugin> plugins = new HashMap<>();
+	private final PluginIndex plugins = new PluginIndex();
 	private final Set<Plugin> enabled = new HashSet<>();
 
 	private final boolean recursiveLookup;
@@ -176,7 +176,7 @@ public class PluginManager implements Service, PluginLoader {
 				"Plugin already linked to another manager: " + plugin.manifest().name());
 		plugin.link(this);
 
-		plugins.put(plugin.manifest().name(), plugin);
+		plugins.put(plugin);
 
 		return plugin;
 	}
@@ -252,7 +252,7 @@ public class PluginManager implements Service, PluginLoader {
 				.map(plugins::get).filter(enabled()::contains)
 				.map(peek(enabled()::remove)).forEachOrdered(Plugin::disable);
 		dependencyGraph().clear();
-		plugins().clear();
+		plugins.clear();
 	}
 
 	@Override
