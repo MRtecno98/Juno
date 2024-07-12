@@ -216,6 +216,10 @@ public class PluginGraph extends DependencyGraph<PluginManifest, PluginGraph.Plu
 			}
 
 			public CompatibilityException toException() {
+				return new CompatibilityException(this);
+			}
+
+			public String message() {
 				StringBuilder sb = new StringBuilder("No version of plugin ");
 				sb.append(name());
 				sb.append(" is compatible with its dependents\n");
@@ -227,8 +231,7 @@ public class PluginGraph extends DependencyGraph<PluginManifest, PluginGraph.Plu
 				});
 
 				sb.delete(sb.length() - 1, sb.length()); // Remove last newline
-
-				return new CompatibilityException(sb.toString(), this);
+				return sb.toString();
 			}
 
 			public static SelectionResult trivial(String name, Version selected) {

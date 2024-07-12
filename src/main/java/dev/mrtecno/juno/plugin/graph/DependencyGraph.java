@@ -122,26 +122,6 @@ public abstract class DependencyGraph<T, N extends DependencyGraph.Node<T>> {
 		return new HashSet<>(nodes.values());
 	}
 
-	public Set<T> dependencies(T element) {
-		return nodes.get(element).dependenciesStream(element)
-				.collect(Collectors.toUnmodifiableSet());
-	}
-
-	public Set<T> dependents(T element) {
-		return nodes.get(element).dependentsStream(element)
-				.collect(Collectors.toUnmodifiableSet());
-	}
-
-	public Set<T> transitiveDependencies(T element) {
-		return nodes.get(element).transitiveDependenciesStream()
-				.collect(Collectors.toUnmodifiableSet());
-	}
-
-	public Set<T> transitiveDependents(T element) {
-		return nodes.get(element).transitiveDependentsStream()
-				.collect(Collectors.toUnmodifiableSet());
-	}
-
 	public int layer(N node) {
 		return layer0(node, new LinkedHashMap<>());
 	}
@@ -267,24 +247,6 @@ public abstract class DependencyGraph<T, N extends DependencyGraph.Node<T>> {
 			Collection<N> dependents = new ArrayList<>(dependents());
 			dependents.add((N) this);
 			return dependents;
-		}
-
-		default Stream<T> transitiveDependenciesStream() {
-			return dependencies().stream().flatMap(n -> Stream.concat(
-					Stream.of(n.element()), n.transitiveDependenciesStream()));
-		}
-
-		default Stream<T> transitiveDependentsStream() {
-			return dependents().stream().flatMap(n -> Stream.concat(
-					Stream.of(n.element()), n.transitiveDependentsStream()));
-		}
-
-		default Stream<T> dependenciesStream(T element) {
-			return dependencies().stream().map(Node::element);
-		}
-
-		default Stream<T> dependentsStream(T element) {
-			return dependents().stream().map(Node::element);
 		}
 	}
 

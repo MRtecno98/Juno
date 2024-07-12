@@ -7,19 +7,24 @@ import java.util.Map;
 import java.util.Optional;
 
 @Getter
+@SuppressWarnings("unchecked")
 public class ServiceManager {
 	private final Map<Class<? extends Service>, Service> services = new HashMap<>();
 
-	public Optional<Service> register(Service service) {
-		return Optional.ofNullable(services.put(service.getClass(), service));
+	public <T extends Service> Optional<T> register(Class<T> clazz, T service) {
+		return Optional.ofNullable((T) services.put(clazz, service));
 	}
 
-	public Optional<Service> unregister(Class<? extends Service> clazz) {
-		return Optional.ofNullable(services.remove(clazz));
+	public <T extends Service> Optional<T> register(T service) {
+		return register((Class<T>) service.getClass(), service);
 	}
 
-	public Optional<Service> get(Class<? extends Service> clazz) {
-		return Optional.ofNullable(services.get(clazz));
+	public <T extends Service> Optional<T> unregister(Class<T> clazz) {
+		return Optional.ofNullable((T) services.remove(clazz));
+	}
+
+	public <T extends Service> Optional<T> get(Class<T> clazz) {
+		return Optional.ofNullable((T) services.get(clazz));
 	}
 
 	public Service require(Class<? extends Service> clazz) {

@@ -18,7 +18,7 @@ public class Juno implements Service {
 
 	@Override
 	public void enable() {
-		serviceManager.register(this).ifPresent(_ -> {
+		serviceManager().register(this).ifPresent(_ -> {
 			throw new IllegalStateException("Juno was already registered");
 		});
 

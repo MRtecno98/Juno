@@ -1,17 +1,19 @@
 package dev.mrtecno.juno.plugin.graph;
 
 import dev.mrtecno.juno.plugin.graph.PluginGraph.PluginNode.SelectionResult;
+import lombok.Getter;
 
+@Getter
 public class CompatibilityException extends IllegalStateException {
 	private final SelectionResult result;
 
-	CompatibilityException(String message, SelectionResult result) {
-		super(message);
+	CompatibilityException(SelectionResult result) {
+		super(result.message());
 		this.result = result;
 	}
 
-	CompatibilityException(String message, SelectionResult result, Throwable cause) {
-		super(message, cause);
+	CompatibilityException(SelectionResult result, Throwable cause) {
+		super(result.message(), cause);
 		this.result = result;
 	}
 }
