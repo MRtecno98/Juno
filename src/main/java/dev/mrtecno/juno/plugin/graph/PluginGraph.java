@@ -207,12 +207,12 @@ public class PluginGraph extends DependencyGraph<PluginManifest, PluginGraph.Plu
 				return Optional.ofNullable(selected);
 			}
 
-			public Optional<SelectionResult> ifSuccesfull() {
+			public Optional<SelectionResult> ifSuccessful() {
 				return result().map(_ -> this);
 			}
 
 			public Version orElseThrow() {
-				return ifSuccesfull().orElseThrow(this::toException).selected();
+				return ifSuccessful().orElseThrow(this::toException).selected();
 			}
 
 			public CompatibilityException toException() {
