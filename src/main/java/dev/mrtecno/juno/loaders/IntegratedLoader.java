@@ -1,14 +1,19 @@
 package dev.mrtecno.juno.loaders;
 
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
 import dev.mrtecno.juno.plugin.Plugin;
 import dev.mrtecno.juno.plugin.PluginLoader;
 import dev.mrtecno.juno.plugin.PluginManifest;
 import dev.mrtecno.juno.util.Pair;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-
-import java.io.InputStream;
-import java.util.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Getter
 @RequiredArgsConstructor
@@ -35,13 +40,13 @@ public class IntegratedLoader implements PluginLoader, LocalLoader {
 	}
 
 	@Override
-	public Collection<PluginManifest> availablePlugins() {
-		return manifests.keySet();
+	public Flux<PluginManifest> availablePlugins() {
+		return Flux.fromIterable(manifests.keySet());
 	}
 
 	@Override
-	public Plugin load(PluginManifest manifest) {
-		return Plugin.loadFromClass(manifests.get(manifest), manifest);
+	public Mono<Plugin> load(PluginManifest manifest) {
+		return Mono.just(Plugin.loadFromClass(manifests.get(manifest), manifest));
 	}
 
 	@Override

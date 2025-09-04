@@ -2,22 +2,21 @@ package dev.mrtecno.juno.plugin;
 
 import dev.mrtecno.juno.plugin.identifier.NamedIdentifier;
 import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
-
-import java.util.Collection;
-import java.util.Optional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface PluginLoader {
 	void initialize(ClassLoader parent);
 
-	Collection<PluginManifest> availablePlugins();
+	Flux<PluginManifest> availablePlugins();
 
-	Optional<PluginManifest> lookup(PluginWildcard name);
+	Mono<PluginManifest> lookup(PluginWildcard name);
 
-	default Optional<PluginManifest> lookup(String name) {
+	default Mono<PluginManifest> lookup(String name) {
 		return lookup(new NamedIdentifier(name));
 	}
 
-	Plugin load(PluginManifest manifest);
+	Mono<Plugin> load(PluginManifest manifest);
 
 	void unload(Plugin pl);
 }

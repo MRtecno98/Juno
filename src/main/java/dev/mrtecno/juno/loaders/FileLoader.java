@@ -1,18 +1,5 @@
 package dev.mrtecno.juno.loaders;
 
-import dev.mrtecno.juno.plugin.Plugin;
-import dev.mrtecno.juno.plugin.PluginLoader;
-import dev.mrtecno.juno.plugin.PluginManifest;
-import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
-import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
-import dev.mrtecno.juno.plugin.identifier.Version;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -21,9 +8,29 @@ import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
+
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
+import dev.mrtecno.juno.plugin.Plugin;
+import dev.mrtecno.juno.plugin.PluginLoader;
+import dev.mrtecno.juno.plugin.PluginManifest;
+import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
+import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
+import dev.mrtecno.juno.plugin.identifier.Version;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Getter
 @RequiredArgsConstructor
@@ -99,8 +106,8 @@ public class FileLoader implements PluginLoader, LocalLoader {
 	}
 
 	@Override
-	public Collection<PluginManifest> availablePlugins() {
-		return discoveredFiles().keySet();
+	public Flux<PluginManifest> availablePlugins() {
+		return Flux.fromIterable(discoveredFiles().keySet());
 	}
 
 	// REMEMBER TO DESTROY THIS REFERENCE
@@ -120,10 +127,10 @@ public class FileLoader implements PluginLoader, LocalLoader {
 	}
 
 	@Override
-	public Plugin load(PluginManifest manifest) {
+	public Mono<Plugin> load(PluginManifest manifest) {
 		try {
-			return Class.forName(manifest.entrypoint(), true, requireLoader(manifest))
-					.asSubclass(Plugin.class).getConstructor(PluginManifest.class).newInstance(manifest);
+			return Mono.just(Class.forName(manifest.entrypoint(), true, requireLoader(manifest))
+					.asSubclass(Plugin.class).getConstructor(PluginManifest.class).newInstance(manifest));
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalArgumentException("Could not load plugin " + manifest.name(), e);
 		}

@@ -5,11 +5,12 @@ import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
 import dev.mrtecno.juno.plugin.identifier.Version;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
+import reactor.core.publisher.Mono;
 
 @Builder
 public record PluginManifest(PluginLoader loader, String entrypoint,
 							 @EqualsAndHashCode.Include PluginIdentifier id, PluginWildcard[] dependencies) {
-	public Plugin load() {
+	public Mono<Plugin> load() {
 		return loader.load(this);
 	}
 

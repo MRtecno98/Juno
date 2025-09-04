@@ -1,5 +1,20 @@
 package dev.mrtecno.juno.plugin;
 
+import static dev.mrtecno.juno.util.Optionals.peek;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import dev.mrtecno.juno.plugin.graph.PluginGraph;
 import dev.mrtecno.juno.plugin.identifier.PluginIdentifier;
 import dev.mrtecno.juno.plugin.identifier.PluginWildcard;
@@ -7,14 +22,8 @@ import dev.mrtecno.juno.plugin.identifier.Version;
 import dev.mrtecno.juno.service.Service;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-
-import java.util.*;
-import java.util.function.Predicate;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-
-import static dev.mrtecno.juno.util.Optionals.peek;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Getter
 @RequiredArgsConstructor
@@ -58,32 +67,30 @@ public class PluginManager implements Service, PluginLoader {
 	}
 
 	@Override
-	public Collection<PluginManifest> availablePlugins() {
-		return discoveredPlugins().values().stream()
-				.flatMap(m -> m.values().stream()).toList();
+	public Flux<PluginManifest> availablePlugins() {
+		return Flux.fromIterable(discoveredPlugins().values())
+				.flatMap(m -> Flux.fromIterable(m.values()));
 	}
 
-	public Optional<PluginManifest> lookup(PluginWildcard id) {
+	public Mono<PluginManifest> lookup(PluginWildcard id) {
 		if(discoveredPlugins().containsKey(id.name()))
 			if(id instanceof PluginIdentifier identifier)
-				return Optional.ofNullable(
-						knownVersions(id.name()).get(identifier.version()));
-			else return knownVersions(id.name()).reversed()
-					.values().stream().filter(id).findFirst();
+				return Mono.create(s -> s.success(
+						knownVersions(id.name()).get(identifier.version())));
+			else return Flux.fromIterable(
+					knownVersions(id.name()).reversed().values()).filter(id).next();
 
-		return loaders().stream()
-				.map(loader -> loader.lookup(id))
-				.filter(Optional::isPresent).map(Optional::get)
-				.peek(this::discover).findFirst().map(peek(m -> {
-					if(recursiveLookup()) lookupDependencies(m);
-				}));
+		return Flux.fromIterable(loaders())
+				.flatMap(loader -> loader.lookup(id))
+				.doOnNext(this::discover).next().doOnNext(m -> {
+					if(recursiveLookup()) lookupDependencies(m).subscribe();
+				});
 	}
 
-	public Collection<PluginManifest> lookupDependencies(PluginManifest manifest) {
-		return Arrays.stream(manifest.dependencies()).map(d ->
-			lookup(d).orElseThrow(() -> new IllegalArgumentException(
-					"Dependency for plugin " + manifest.name() + " not found: " + d)))
-				.toList();
+	public Flux<PluginManifest> lookupDependencies(PluginManifest manifest) {
+		return Flux.fromArray(manifest.dependencies()).flatMap(d ->
+			lookup(d).switchIfEmpty(Mono.error(new IllegalArgumentException(
+					"Dependency for plugin " + manifest.name() + " not found: " + d))));
 	}
 
 	public Optional<PluginManifest> knownManifest(PluginIdentifier id) {
@@ -181,14 +188,13 @@ public class PluginManager implements Service, PluginLoader {
 		return plugin;
 	}
 
-	public Plugin load(PluginManifest manifest) {
+	public Mono<Plugin> load(PluginManifest manifest) {
 		if(!isKnown(manifest)) discover(manifest);
-		if(isLoaded(manifest)) return plugins.get(manifest.name());
+		if(isLoaded(manifest)) return Mono.just(plugins.get(manifest.name()));
 
-		lookupDependencies(manifest).stream()
-				.filter(Predicate.not(this::isLoaded)).forEach(this::load);
-
-		return registerPlugin(manifest.load());
+		return lookupDependencies(manifest)
+				.filter(Predicate.not(this::isLoaded)).doOnNext(this::load)
+				.then(Mono.defer(manifest::load).map(this::registerPlugin));
 	}
 
 	@Override
@@ -257,8 +263,9 @@ public class PluginManager implements Service, PluginLoader {
 
 	@Override
 	public void load() {
-		loaders().stream().flatMap(loader
-				-> loader.availablePlugins().stream()).forEach(this::load);
+		Flux.fromIterable(loaders())
+			.flatMap(PluginLoader::availablePlugins)
+			.flatMap(this::load).subscribe();
 	}
 
 	@Override
